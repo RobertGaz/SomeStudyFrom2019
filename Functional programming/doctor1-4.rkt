@@ -1,25 +1,44 @@
 ; заготовка "Доктора". Август 2019
 #lang scheme/base
-; В учебных целях используется базовая версия Scheme
+
+(шаблон В. Малышко)
 
 ; основная функция, запускающая "Доктора"
 ; параметр name -- имя пациента
-(define (visit-doctor name)
-  (printf "Hello, ~a!\n" name)
-  (print '(what seems to be the trouble?))
-  (doctor-driver-loop name '())
-)
+(define (visit-doctor stopword max_clients)
+  (cond ((= max_clients 0)
+          (print '(i am worked out)))
+  (else      
+  (let ((name (ask-patient-name))) 
+    (cond ((equal? name stopword)
+         (print '(i need to sleep)))
+    (else
+         (printf "Hello, ~a!\n" name)
+         (print '(what seems to be the trouble?))
+         (doctor-driver-loop name '())
+         (visit-doctor name (- max_clients 1))))))
+  
+  ))
 
+(define (ask-patient-name)
+  (print '(Next!))
+  (newline)
+  (print '(Who are you?))
+  (newline)
+  (car (read)))
+  
 ; цикл диалога Доктора с пациентом
 ; параметр name -- имя пациента
 (define (doctor-driver-loop name previous)
     (newline)
     (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
     (let ((user-response (read)))
-      (cond 
-	    ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
+      (cond ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
              (printf "Goodbye, ~a!\n" name)
-             (print '(see you next week)))
+             (print '(see you next week))
+             (newline)
+             (newline))
+             
             (else (print (reply user-response previous)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл 
                   (doctor-driver-loop name (cons user-response previous))
              )
@@ -38,7 +57,6 @@
   )
 
 )
-
 			
 ; 1й способ генерации ответной реплики -- замена лица в реплике пользователя и приписывание к результату нового начала
 (define (qualifier-answer user-response)
@@ -81,26 +99,6 @@
 (define (many-replace replacement-pairs lst)
   (map (lambda (word) (let ((replac (assoc word replacement-pairs))) (if replac (cadr replac) word))) lst))
 
-;для локальных переменных юзать let всегда!
-
-(define (many-replace_original replacement-pairs lst)
-        (cond ((null? lst) lst)
-              (else (let ((pat-rep (assoc (car lst) replacement-pairs))) ; Доктор ищет первый элемент списка в ассоциативном списке замен
-                      (cons (if pat-rep (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
-                                (car lst) ; иначе в начале ответа помещается начало списка без изменений
-                            )
-                            (many-replace replacement-pairs (cdr lst)) ; рекурсивно производятся замены в хвосте списка
-                        )
-                     )
-               )
-         )
-  )
-
-(define (many-replace_my replacement-pairs lst)
-  (let loop ((cur_result null) (lst lst))
-    (cond ((null? lst) (reverse cur_result))
-          (else (let ((pat-rep (assoc (car lst) replacement-pairs)))
-                  (loop (cons (if pat-rep (cadr pat-rep) (car lst)) cur_result) (cdr lst)))))))
 
 ; 2й способ генерации ответной реплики -- случайный выбор одной из заготовленных фраз, не связанных с репликой пользователя
 (define (hedge)
@@ -116,6 +114,7 @@
                        )
          )
 )
+
 
 ; 3я стратегия - случайный выбор одной из предыдущих фраз пользователя  
 (define (history-answer previous)
