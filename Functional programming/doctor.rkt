@@ -1,7 +1,8 @@
 ; заготовка "Доктора". Август 2019
 ; Шаблон Виктора Малышко
 
-#lang scheme/base
+#lang scheme/base 
+
 
 ; структура шаблонов для ключевых слов
 (define structure
@@ -97,15 +98,28 @@
              (newline)
              (newline))
              
-            (else (print (reply user-response previous)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл 
+            (else (print (reply user-response previous strategies)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл 
                   (doctor-driver-loop name (cons user-response previous))
              )
        )
       )
 )
 
-; генерация ответной реплики по user-response -- реплике от пользователя 
-(define (reply user-response previous)
+; Обобщённый reply
+; генерация ответной реплики (user-response -- реплика от пользователя, previous - список прошлых реплик, strategies - список стратегий)
+(define (reply user-response previous strategies)
+  ((pick-random-with-weight (filter (lambda (elem) ((car elem) user-response previous)) strategies)) user-response previous)
+)
+
+; Выбрать случайный элемент с учётом веса из списка специального формата (strategies)
+(define (pick-random-with-weight lst)
+  (let loop ((cur_number (+ (random (foldl (lambda (elem result) (+ result (cadr elem))) 0 lst)) 1)) (left lst))
+    (if (<= cur_number (cadar left)) (caddar left) (loop (- cur_number (cadar left)) (cdr left))))
+)
+
+
+; генерация ответной реплики по user-response -- реплике от пользователя (СТАРАЯ ВЕРСИЯ)
+(define (reply_old user-response previous)
 
   (let ((has_keys (have_keys user-response))) 
         (let choose () (case (random 4) 
@@ -119,7 +133,7 @@
 )
 
 ; 1й способ генерации ответной реплики -- замена лица в реплике пользователя и приписывание к результату нового начала
-(define (qualifier-answer user-response)
+(define (qualifier-answer user-response previous)
         (append (pick-random '((you seem to think that)
                                (you feel that)
                                (why do you believe that)
@@ -138,6 +152,7 @@
 (define (pick-random lst)
   (list-ref lst (random (length lst)))
 )
+
 
 ; замена лица во фразе			
 (define (change-person phrase)
@@ -161,7 +176,7 @@
 
 
 ; 2й способ генерации ответной реплики -- случайный выбор одной из заготовленных фраз, не связанных с репликой пользователя
-(define (hedge)
+(define (hedge user-response previous)
        (pick-random '((please go on)
                        (many people have the same sorts of feelings)
                        (many of my patients have told me the same thing)
@@ -176,13 +191,13 @@
 )
 
 ; 3я стратегия - случайный выбор одной из предыдущих фраз пользователя  
-(define (history-answer previous)
+(define (history-answer user-response previous)
   (append '(earlier you said that) (change-person (pick-random previous)))
 )
 
 ; 4я стратегия - выдача реплики в зависимости от ключевого слова
-(define (keyword-answer replic)
-  (let ((keyword (pick-random (filter (lambda (elem) (member elem keylist)) replic))))
+(define (keyword-answer user-response previous)
+  (let ((keyword (pick-random (filter (lambda (elem) (member elem keylist)) user-response))))
     (map (lambda (elem) (if (equal? elem '*) keyword elem)) (pick-random (templates keyword)))
   )
 )
@@ -197,4 +212,26 @@
 
 ; получить список шаблонов для слова word
 (define (templates word)
-  (foldl (lambda (elem result) (append result (cond ((member word (car elem)) (cadr elem)) (else '())))) '() structure))
+  (let loop ((left structure) (result '()))
+    (cond ((null? left) result)
+          (else (loop (cdr left) (append result (cond ((member word (caar left)) (cadar left)) (else '()))))))))
+
+
+
+; функции-предикаты для разных стратегий
+(define (true_predicat user-response previous) #t)
+(define (history_predicat user-response previous) (if (null? previous) #f #t))
+(define (keyword_predicat user-response previous) (have_keys user-response))
+
+; структура, хранящая стратегии ответа на реплики пользователя
+; для каждой стратегии здесь список из предиката, веса, и функции построения реплики 
+(define strategies
+  (list
+    (list true_predicat 1 qualifier-answer)
+    (list true_predicat 1 hedge)
+    (list history_predicat 2 history-answer)
+    (list keyword_predicat 3 keyword-answer)
+   )
+)
+
+
